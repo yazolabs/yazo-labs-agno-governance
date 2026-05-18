@@ -20,6 +20,15 @@ from db import get_postgres_db
 runtime_env = getenv("RUNTIME_ENV", "prd")
 scheduler_base_url = getenv("AGENTOS_URL", "http://127.0.0.1:8000")
 
+# Controla se o AgentOS deve exigir JWT.
+# Para POC self-hosted no Coolify, deixe AGENTOS_AUTH_ENABLED=false.
+# Para produção com JWT próprio, mude para true e configure JWT_VERIFICATION_KEY.
+agentos_auth_enabled = getenv("AGENTOS_AUTH_ENABLED", "false").lower() in (
+    "true",
+    "1",
+    "yes",
+)
+
 # ---------------------------------------------------------------------------
 # Interfaces
 # - The CodeSearch agent becomes available on Slack when both env vars are set
@@ -28,6 +37,7 @@ SLACK_BOT_TOKEN = getenv("SLACK_BOT_TOKEN", "")
 SLACK_SIGNING_SECRET = getenv("SLACK_SIGNING_SECRET", "")
 
 interfaces: list = []
+
 if SLACK_BOT_TOKEN and SLACK_SIGNING_SECRET:
     from agno.os.interfaces.slack import Slack
 
@@ -65,13 +75,14 @@ agent_os = AgentOS(
     tracing=True,
     scheduler=True,
     scheduler_base_url=scheduler_base_url,
-    authorization=runtime_env == "prd",
+    authorization=agentos_auth_enabled,
     lifespan=lifespan,
     db=get_postgres_db(),
     agents=[web_search, code_search],
     interfaces=interfaces,
     config=str(Path(__file__).parent / "config.yaml"),
 )
+
 app = agent_os.get_app()
 
 
