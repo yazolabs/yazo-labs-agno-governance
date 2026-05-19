@@ -7,6 +7,8 @@ from contextlib import asynccontextmanager
 from os import getenv
 from pathlib import Path
 
+from fastapi.middleware.cors import CORSMiddleware
+
 from agno.os import AgentOS
 from agno.utils.log import log_info
 
@@ -21,9 +23,6 @@ from db import get_postgres_db
 runtime_env = getenv("RUNTIME_ENV", "prd")
 scheduler_base_url = getenv("AGENTOS_URL", "http://127.0.0.1:8000")
 
-# Controla se o AgentOS deve exigir JWT.
-# Para POC self-hosted no Coolify, deixe AGENTOS_AUTH_ENABLED=false.
-# Para produção com JWT próprio, mude para true e configure JWT_VERIFICATION_KEY.
 agentos_auth_enabled = getenv("AGENTOS_AUTH_ENABLED", "false").lower() in (
     "true",
     "1",
@@ -32,7 +31,6 @@ agentos_auth_enabled = getenv("AGENTOS_AUTH_ENABLED", "false").lower() in (
 
 # ---------------------------------------------------------------------------
 # Interfaces
-# - The CodeSearch agent becomes available on Slack when both env vars are set
 # ---------------------------------------------------------------------------
 SLACK_BOT_TOKEN = getenv("SLACK_BOT_TOKEN", "")
 SLACK_SIGNING_SECRET = getenv("SLACK_SIGNING_SECRET", "")
@@ -54,10 +52,7 @@ if SLACK_BOT_TOKEN and SLACK_SIGNING_SECRET:
 
 
 # ---------------------------------------------------------------------------
-# Lifespan — extension hook for app-level startup / teardown.
-#
-# AgentOS handles the MCP lifecycle (connect on startup, close on shutdown).
-# Keep this hook in place so you can plug in your own setup as needed.
+# Lifespan
 # ---------------------------------------------------------------------------
 @asynccontextmanager
 async def lifespan(app):  # type: ignore[no-untyped-def]
@@ -85,6 +80,21 @@ agent_os = AgentOS(
 )
 
 app = agent_os.get_app()
+
+# ---------------------------------------------------------------------------
+# CORS for self-hosted Agent UI
+# ---------------------------------------------------------------------------
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://chat-agno.yazolabs.com.br",
+        "https://agno.yazolabs.com.br",
+        "http://localhost:3000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 if __name__ == "__main__":
